@@ -1,0 +1,98 @@
+<template>
+  <main class="container text-white">
+    <div class="pt-4 mb-8 relative">
+      <input
+        type="text"
+        @input="getSearchResults"
+        v-model="searchQuery"
+        placeholder="search for a city or state.."
+        class="py-2 px-1 w-full bg-transparent border-b focus:border-weather-secondary focus:outline-none focus:text-xl duration-100 focus:shadow-[0px_1px_0_0_#004E71]"
+      />
+      <ul
+        class="absolute bg-weather-secondary text-white w-full shadow-md py-2 px-1 top-[66px]"
+        v-if="mapBoxSearchResults"
+      >
+        <p v-if="searchError" class="text-white capitalize">
+          sorry something wrong ! please try again
+        </p>
+        <p
+          v-if="!serverError && mapBoxSearchResults.length === 0"
+          class="text-white capitalize"
+        >
+          No result matches your query , try another term
+        </p>
+        <template v-else>
+          <li
+            v-for="searchResult in mapBoxSearchResults"
+            :key="searchResult.id"
+            class="py-2 cursor-pointer"
+            @click="previewCity(searchResult)"
+          >
+            {{ searchResult.place_name }}
+          </li>
+        </template>
+      </ul>
+    </div>
+    <div class="flex flex-col gap-4">
+      <suspense>
+        <CityList />
+        <template #fallback>
+          <p class="text-white bg-red-700 text-center">
+            <CityCardSkeleton />
+          </p>
+        </template>
+      </suspense>
+    </div>
+  </main>
+</template>
+
+<script setup>
+import { ref } from "vue";
+import axios from "axios";
+import { useRouter } from "vue-router";
+import CityList from "../components/CityList.vue";
+import CityCardSkeleton from "../components/CityCardSkeleton.vue";
+const router = useRouter();
+const searchQuery = ref("");
+const searchError = ref(null);
+const mapBoxSearchResults = ref(null);
+const mapBoxApiKey =
+  "pk.eyJ1Ijoiam9obmtvbWFybmlja2kiLCJhIjoiY2t5NjFzODZvMHJkaDJ1bWx6OGVieGxreSJ9.IpojdT3U3NENknF6_WhR2Q";
+const queryTimeout = ref(null);
+
+const previewCity = (searchResult) => {
+  console.log(searchResult);
+  const [city, state] = searchResult.place_name.split(",");
+
+  router.push({
+    name: "CityView",
+    params: { state: state.replaceAll(" ", ""), city: city },
+    query: {
+      lat: searchResult.geometry.coordinates[1],
+      lng: searchResult.geometry.coordinates[0],
+      preview: true,
+    },
+  });
+};
+
+const getSearchResults = () => {
+  clearTimeout(queryTimeout.value);
+  queryTimeout.value = setTimeout(async () => {
+    if (searchQuery.value !== "") {
+      try {
+        const result = await axios.get(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${searchQuery.value}.json?access_token=${mapBoxApiKey}&types=place`
+        );
+        mapBoxSearchResults.value = result.data.features;
+        console.log(mapBoxSearchResults.value);
+      } catch {
+        searchError.value;
+      }
+      return;
+    }
+    mapBoxSearchResults.value = null;
+  }, 300);
+};
+</script>
+
+<style lang="scss" scoped></style>
